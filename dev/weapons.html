@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Firing pattern harness</title>
+<style>body{font:13px ui-monospace,monospace;margin:16px}td{padding:2px 10px}</style>
+<h1>Firing pattern harness</h1>
+<div id="out"></div>
+<script type="module">
+import * as THREE from 'three';
+import { ProjectileSystem, WeaponInstance } from '/src/game/weapon.ts';
+
+const scene = new THREE.Scene();
+
+/** A dummy body that records what hits it. */
+function dummy(x, y, z) {
+  return {
+    position: new THREE.Vector3(x, y, z),
+    radius: 0.42, height: 1.78, alive: true, taken: 0, hits: 0,
+    hit(d) { this.taken += d; this.hits++; },
+  };
+}
+
+function spec(pattern, pips) {
+  return {
+    id: pattern, name: pattern, texture: '', width: 1, height: 1,
+    muzzle: { x: 1, y: 0.5 }, grip: { x: 0, y: 1 },
+    pattern, pips: { damage: 4, fireRate: 8, accuracy: 8, ammo: 8, reload: 8, count: 1, ...pips },
+    createdAt: 0,
+  };
+}
+
+/** Fire at the target for `seconds` of simulated time and report the damage. */
+function trial({ pattern, pips, colliders = [], target, aim, seconds = 2.5, muzzle }) {
+  const projectiles = new ProjectileSystem(scene, colliders);
+  const w = new WeaponInstance(spec(pattern, pips));
+  const origin = muzzle ?? new THREE.Vector3(0, 1.6, 0);
+  const dt = 1 / 120;
+  for (let t = 0; t < seconds; t += dt) {
+    w.update(dt);
+    w.fire(origin.clone(), aim.clone().normalize(), projectiles, [target], colliders, true);
+    projectiles.update(dt, [target], dummy(999, 0, 999));
+  }
+  return { hits: target.hits, damage: Math.round(target.taken) };
+}
+
+const wall = (x, y, z, w, h, d) => new THREE.Box3(
+  new THREE.Vector3(x - w / 2, y - h / 2, z - d / 2),
+  new THREE.Vector3(x + w / 2, y + h / 2, z + d / 2));
+
+const cases = [];
+
+// Straight down the middle: must hit.
+cases.push(['straight hits a target dead ahead',
+  trial({ pattern: 'straight', target: dummy(0, 1.78, -14), aim: new THREE.Vector3(0, -0.02, -1) }),
+  r => r.hits > 5]);
+
+// A wall in the way: must not.
+cases.push(['straight is stopped by a wall',
+  trial({ pattern: 'straight', colliders: [wall(0, 2, -7, 6, 4, 1)],
+    target: dummy(0, 1.78, -14), aim: new THREE.Vector3(0, -0.02, -1) }),
+  r => r.hits === 0]);
+
+// Spread throws many pellets; at range some miss, so hits must exceed shots.
+cases.push(['spread lands multiple pellets per trigger pull',
+  trial({ pattern: 'spread', pips: { count: 8, accuracy: 2, fireRate: 2 },
+    target: dummy(0, 1.78, -6), aim: new THREE.Vector3(0, -0.02, -1), seconds: 2 }),
+  r => r.hits > 6]);
+
+// Lobbed shots arc, so aiming flat at a distant target still connects.
+cases.push(['arc drops onto a target aimed at flat',
+  trial({ pattern: 'arc', target: dummy(0, 1.78, -18), aim: new THREE.Vector3(0, 0, -1) }),
+  r => r.hits > 0]);
+
+// Ricochet: bank a shot off the back wall onto a target off to one side.
+const bankWall = [wall(0, 3, -8, 24, 6, 1)];
+const bankTarget = () => dummy(6, 1.78, -4);
+const bankAim = new THREE.Vector3(0.5, -0.02, -1);
+cases.push(['bounce banks off a wall onto the target',
+  trial({ pattern: 'bounce', colliders: bankWall, target: bankTarget(), aim: bankAim, seconds: 3 }),
+  r => r.hits > 0]);
+cases.push(['straight does NOT bank off the same wall',
+  trial({ pattern: 'straight', colliders: bankWall, target: bankTarget(), aim: bankAim, seconds: 3 }),
+  r => r.hits === 0]);
+
+// Homing: aimed deliberately wide, must still curve in.
+cases.push(['homing corrects a badly aimed shot',
+  trial({ pattern: 'homing', target: dummy(6, 1.78, -12), aim: new THREE.Vector3(0, 0, -1), seconds: 3 }),
+  r => r.hits > 0]);
+cases.push(['straight does NOT correct the same shot',
+  trial({ pattern: 'straight', target: dummy(6, 1.78, -12), aim: new THREE.Vector3(0, 0, -1), seconds: 3 }),
+  r => r.hits === 0]);
+
+// Beam is hitscan: it should land far more shots than a slow projectile can.
+cases.push(['beam hits instantly at long range',
+  trial({ pattern: 'beam', target: dummy(0, 1.78, -60), aim: new THREE.Vector3(0, -0.005, -1), seconds: 2 }),
+  r => r.hits > 5]);
+cases.push(['beam is stopped by a wall',
+  trial({ pattern: 'beam', colliders: [wall(0, 3, -20, 8, 6, 1)],
+    target: dummy(0, 1.78, -60), aim: new THREE.Vector3(0, -0.005, -1), seconds: 2 }),
+  r => r.hits === 0]);
+
+// Reloading must actually gate firing.
+cases.push(['a small magazine limits the burst',
+  trial({ pattern: 'straight', pips: { ammo: 0, reload: 0, fireRate: 8 },
+    target: dummy(0, 1.78, -8), aim: new THREE.Vector3(0, -0.02, -1), seconds: 1.2 }),
+  r => r.hits > 0 && r.hits <= 5]);
+
+const rows = cases.map(([name, result, check]) => ({ name, ...result, pass: check(result) }));
+const pre = document.createElement('pre');
+pre.id = 'results';
+pre.textContent = JSON.stringify(rows, null, 1);
+document.body.append(pre);
+</script>

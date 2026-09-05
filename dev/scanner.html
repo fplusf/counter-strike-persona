@@ -1,0 +1,134 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Weapon card scanner harness</title>
+<style>body{font:14px system-ui;margin:16px}canvas{border:1px solid #ccc;max-width:380px}pre{background:#f4f4f4;padding:8px}</style>
+<h1>Weapon card scanner harness</h1>
+<p>Prints a card, shades known pips, warps it like a phone photo, then reads it back.</p>
+<div id="out"></div>
+<script type="module">
+import { CARD, apply, buildCardSvg, homography, scanCard } from '/src/studio/cardScanner.ts';
+
+/** Render the printable card, shade the given pips, and draw a fake gun. */
+async function makeFilledCard(pips, pattern) {
+  const svg = buildCardSvg();
+  const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  const img = new Image();
+  await new Promise((r, j) => { img.onload = r; img.onerror = j; img.src = url; });
+
+  const c = document.createElement('canvas');
+  c.width = CARD.w; c.height = CARD.h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0, CARD.w, CARD.h);
+
+  ctx.fillStyle = '#1a1a1a';
+  CARD.rows.forEach((name, r) => {
+    for (let i = 0; i < pips[name]; i++) {
+      ctx.fillRect(CARD.pipX + i * CARD.pipStep + 3, CARD.rowY + r * CARD.rowStep + 3,
+                   CARD.pipSize - 6, CARD.pipSize - 6);
+    }
+  });
+  const k = CARD.patterns.indexOf(pattern);
+  ctx.fillRect(CARD.patternX + k * CARD.patternStep + 3, CARD.patternY + 3,
+               CARD.patternSize - 6, CARD.patternSize - 6);
+
+  ctx.strokeStyle = '#123'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(CARD.draw.x + 120, CARD.draw.y + 330);
+  ctx.lineTo(CARD.draw.x + 700, CARD.draw.y + 330);
+  ctx.lineTo(CARD.draw.x + 700, CARD.draw.y + 380);
+  ctx.lineTo(CARD.draw.x + 180, CARD.draw.y + 400);
+  ctx.closePath();
+  ctx.stroke();
+  return c;
+}
+
+/**
+ * Fake a hand-held photo with a genuine projective warp: solve the homography
+ * that takes the card's four corners to an arbitrary quad, then inverse-map
+ * every destination pixel. A trapezoid drawn in slices would not be projective
+ * and would unfairly fail a scanner that assumes a real camera.
+ */
+function fakePhoto(card, quad, dim = 0.35) {
+  const W = 1180, H = 1560;
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const ctx = out.getContext('2d');
+
+  const dst = quad.map(([x, y]) => [x * W, y * H]);
+  const src = [[0, 0], [card.width, 0], [0, card.height], [card.width, card.height]];
+  const inv = homography(dst, src);      // destination pixel -> card pixel
+
+  const sctx = card.getContext('2d', { willReadFrequently: true });
+  const sdata = sctx.getImageData(0, 0, card.width, card.height).data;
+  const img = ctx.createImageData(W, H);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const [sx, sy] = apply(inv, x, y);
+      const di = (y * W + x) * 4;
+      const ix = Math.round(sx), iy = Math.round(sy);
+      let r = 233, g = 230, b = 220;                       // desk around the card
+      if (ix >= 0 && iy >= 0 && ix < card.width && iy < card.height) {
+        const si = (iy * card.width + ix) * 4;
+        r = sdata[si]; g = sdata[si + 1]; b = sdata[si + 2];
+      }
+      // Lighting falls off across the frame, plus sensor noise.
+      const shade = 1 - dim * ((x / W) * 0.5 + (y / H) * 0.5);
+      const n = (Math.random() - 0.5) * 22;
+      img.data[di] = r * shade + n;
+      img.data[di + 1] = g * shade + n;
+      img.data[di + 2] = b * shade + n;
+      img.data[di + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return out;
+}
+
+// Corners as fractions of the frame: TL, TR, BL, BR.
+const cases = [
+  { name: 'flat on a desk',
+    pips: { damage: 6, fireRate: 3, accuracy: 5, ammo: 2, reload: 7, count: 1 }, pattern: 'bounce',
+    quad: [[0.06, 0.04], [0.94, 0.05], [0.05, 0.96], [0.95, 0.95]], dim: 0.2 },
+  { name: 'held at an angle, harsh shadow',
+    pips: { damage: 8, fireRate: 8, accuracy: 0, ammo: 4, reload: 4, count: 6 }, pattern: 'spread',
+    quad: [[0.14, 0.08], [0.88, 0.03], [0.06, 0.93], [0.97, 0.88]], dim: 0.55 },
+  { name: 'tilted the other way, bright',
+    pips: { damage: 1, fireRate: 5, accuracy: 8, ammo: 8, reload: 1, count: 2 }, pattern: 'beam',
+    quad: [[0.04, 0.10], [0.93, 0.02], [0.11, 0.90], [0.88, 0.98]], dim: 0.1 },
+  { name: 'nothing shaded at all',
+    pips: { damage: 0, fireRate: 0, accuracy: 0, ammo: 0, reload: 0, count: 0 }, pattern: 'straight',
+    quad: [[0.05, 0.05], [0.95, 0.05], [0.05, 0.95], [0.95, 0.95]], dim: 0.25 },
+  { name: 'everything shaded',
+    pips: { damage: 8, fireRate: 8, accuracy: 8, ammo: 8, reload: 8, count: 8 }, pattern: 'homing',
+    quad: [[0.05, 0.05], [0.95, 0.05], [0.05, 0.95], [0.95, 0.95]], dim: 0.25 },
+];
+
+const results = [];
+for (const cs of cases) {
+  const card = await makeFilledCard(cs.pips, cs.pattern);
+  const photo = fakePhoto(card, cs.quad, cs.dim);
+  const read = scanCard(photo);
+  const pipsMatch = CARD.rows.every((r) => read.pips[r] === cs.pips[r]);
+  results.push({
+    name: cs.name,
+    detected: read.cardDetected,
+    patternOk: read.pattern === cs.pattern,
+    pipsOk: pipsMatch,
+    expected: cs.pips, got: read.pips,
+    expectedPattern: cs.pattern, gotPattern: read.pattern,
+    artwork: [read.artwork.width, read.artwork.height],
+  });
+  const wrap = document.createElement('div');
+  photo.style.width = '260px';
+  read.artwork.style.width = '260px';
+  wrap.append(photo, read.artwork);
+  document.getElementById('out').append(wrap);
+}
+const pre = document.createElement('pre');
+pre.id = 'results';
+pre.textContent = JSON.stringify(results, null, 1);
+document.body.append(pre);
+window.__results = results;
+</script>
