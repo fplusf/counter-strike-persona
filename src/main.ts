@@ -3,12 +3,13 @@ import type { CharacterSpec, WeaponSpec } from './types';
 import { inkSpent } from './types';
 import {
   deleteCharacter, deleteWeapon, listCharacters, listWeapons,
-  loadLoadout, saveLoadout,
+  loadLoadout, saveCharacter, saveLoadout, saveWeapon,
 } from './store';
 import { defaultCharacter, defaultWeapon } from './game/defaults';
 import { openCharacterStudio } from './studio/characterStudio';
 import { openWeaponStudio } from './studio/weaponStudio';
-import { btn, el } from './studio/ui';
+import { btn, download, el, fileInput } from './studio/ui';
+import { ImportError, exportSpec, parseShare, shareFilename } from './share';
 import { Game } from './game/game';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -62,6 +63,7 @@ async function menu(message?: string) {
     if (c.createdAt > 0) {
       holder.append(
         btn('edit', () => openCharacterStudio(app, () => menu(), c), 'mini'),
+        btn('export', () => download(shareFilename('fighter', c.name), exportSpec('character', c)), 'mini'),
         btn('delete', async () => { await deleteCharacter(c.id); menu(); }, 'mini danger'),
       );
     }
@@ -106,6 +108,7 @@ async function menu(message?: string) {
     if (w.createdAt > 0) {
       holder.append(
         btn('edit', () => openWeaponStudio(app, () => menu(), w), 'mini'),
+        btn('export', () => download(shareFilename('weapon', w.name), exportSpec('weapon', w)), 'mini'),
         btn('delete', async () => { await deleteWeapon(w.id); menu(); }, 'mini danger'),
       );
     }
@@ -125,6 +128,34 @@ async function menu(message?: string) {
     start,
     el('span', 'best', loadout.best ? `best  ${loadout.best}` : 'no runs yet'),
   );
+  if (!matchMedia('(pointer: fine)').matches) {
+    play.append(el('span', 'muted', 'The studios work on touch. The arena needs a mouse and a keyboard.'));
+  }
+
+  // Drawing happens on whatever has the camera; playing happens on whatever
+  // has a mouse. A file carries a fighter between the two.
+  const transfer = el('section', 'shelf');
+  const importInput = fileInput('application/json,.json', async (file) => {
+    try {
+      const payload = parseShare(await file.text());
+      if (payload.kind === 'character') {
+        await saveCharacter(payload.spec);
+        loadout.characterId = payload.spec.id;
+      } else {
+        await saveWeapon(payload.spec);
+        if (loadout.weaponIds.length < 5) loadout.weaponIds.push(payload.spec.id);
+      }
+      saveLoadout(loadout);
+      menu(`Imported ${payload.spec.name}.`);
+    } catch (err) {
+      menu(err instanceof ImportError ? err.message : 'That file could not be read.');
+    }
+  });
+  transfer.append(
+    el('h2', undefined, 'Moving between devices'),
+    el('p', 'muted', 'Draw and scan on the machine with a camera, export the file, import it on the machine with a mouse.'),
+    (() => { const r = el('div', 'row'); r.append(btn('Import a fighter or weapon', () => importInput.click()), importInput); return r; })(),
+  );
 
   const help = el('section', 'shelf help');
   help.append(el('h2', undefined, 'Controls'));
@@ -137,7 +168,7 @@ async function menu(message?: string) {
   for (const [k, v] of rows) { table.append(el('dt', undefined, k), el('dd', undefined, v)); }
   help.append(table);
 
-  root.append(title, charSection, gunSection, play, help);
+  root.append(title, charSection, gunSection, play, transfer, help);
   app.replaceChildren(root);
 }
 

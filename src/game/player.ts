@@ -118,7 +118,11 @@ export class Player implements Target {
       this.grounded = true;
       if (this.position.y > before) this.velocity.y = 0;
     }
-    if (this.position.y < -8) this.spawn(new THREE.Vector3(0, this.eye, 0), this.yaw);
+    if (this.position.y < -8) {
+      // Back to the middle of the page, but no free patch-up for falling off it.
+      this.position.set(0, this.eye, 0);
+      this.velocity.set(0, 0, 0);
+    }
   }
 
   applyTo(camera: THREE.PerspectiveCamera) {

@@ -23,7 +23,14 @@ export const CARD = {
   h: 1414,
   markInset: 62,
   markSize: 46,
-  draw: { x: 70, y: 150, w: 860, h: 610 },
+  draw: { x: 70, y: 176, w: 860, h: 580 },
+  /**
+   * The artwork is cropped this far inside the printed box. The dashed
+   * outline survives matting as a scatter of faint specks, and a single
+   * speck in the far corner is enough to defeat the trim and put the
+   * auto-detected muzzle on the edge of the page instead of on the barrel.
+   */
+  drawInset: 24,
   rows: ['damage', 'fireRate', 'accuracy', 'ammo', 'reload', 'count'] as const,
   rowLabel: {
     damage: 'DAMAGE', fireRate: 'FIRE RATE', accuracy: 'ACCURACY',
@@ -331,7 +338,12 @@ export function scanCard(source: HTMLCanvasElement): ScanResult {
   let strongest = cut;
   patternReads.forEach((v, k) => { if (v > strongest) { strongest = v; pattern = CARD.patterns[k]; } });
 
-  const artwork = warpRegion(source, h, CARD.draw.x, CARD.draw.y, CARD.draw.w, CARD.draw.h, 1.1);
+  const inset = CARD.drawInset;
+  const artwork = warpRegion(
+    source, h,
+    CARD.draw.x + inset, CARD.draw.y + inset,
+    CARD.draw.w - inset * 2, CARD.draw.h - inset * 2, 1.1,
+  );
   return { pips, pattern, artwork, cardDetected: true };
 }
 
@@ -347,12 +359,16 @@ export function buildCardSvg(): string {
     parts.push(`<rect x="${x - ms / 2}" y="${y - ms / 2}" width="${ms}" height="${ms}" fill="${ink}"/>`);
   }
 
-  parts.push(`<text x="${w / 2}" y="112" text-anchor="middle" font-size="46" font-family="Georgia,serif" fill="${ink}">W E A P O N   C A R D</text>`);
+  parts.push(`<text x="${w / 2}" y="104" text-anchor="middle" font-size="46" font-family="Georgia,serif" fill="${ink}">W E A P O N   C A R D</text>`);
+
+  // Every instruction lives outside the box. Anything printed inside it ends
+  // up matted into the weapon the player drew.
   const d = CARD.draw;
+  parts.push(`<text x="${d.x}" y="${d.y - 14}" font-size="22" font-family="Georgia,serif" fill="#7a7f9a">draw your weapon here — side on, barrel to the right</text>`);
   parts.push(`<rect x="${d.x}" y="${d.y}" width="${d.w}" height="${d.h}" fill="none" stroke="${ink}" stroke-width="3" stroke-dasharray="10 8"/>`);
-  parts.push(`<text x="${d.x + 16}" y="${d.y + 34}" font-size="22" font-family="Georgia,serif" fill="#7a7f9a">draw your weapon here — side on</text>`);
-  parts.push(`<path d="M ${d.x + d.w - 60} ${d.y + d.h / 2 - 26} L ${d.x + d.w - 18} ${d.y + d.h / 2} L ${d.x + d.w - 60} ${d.y + d.h / 2 + 26} Z" fill="#c9ccdb"/>`);
-  parts.push(`<text x="${d.x + d.w - 78} " y="${d.y + d.h / 2 + 44}" text-anchor="end" font-size="20" font-family="Georgia,serif" fill="#9a9eb4">barrel points this way</text>`);
+  const capY = d.y + d.h + 30;
+  parts.push(`<text x="${d.x + d.w - 46}" y="${capY}" text-anchor="end" font-size="20" font-family="Georgia,serif" fill="#9a9eb4">barrel points this way</text>`);
+  parts.push(`<path d="M ${d.x + d.w - 36} ${capY - 16} L ${d.x + d.w - 4} ${capY - 6} L ${d.x + d.w - 36} ${capY + 4} Z" fill="#c9ccdb"/>`);
 
   CARD.rows.forEach((name, r) => {
     const y = CARD.rowY + r * CARD.rowStep;

@@ -34,10 +34,10 @@ async function makeFilledCard(pips, pattern) {
 
   ctx.strokeStyle = '#123'; ctx.lineWidth = 8; ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(CARD.draw.x + 120, CARD.draw.y + 330);
-  ctx.lineTo(CARD.draw.x + 700, CARD.draw.y + 330);
-  ctx.lineTo(CARD.draw.x + 700, CARD.draw.y + 380);
-  ctx.lineTo(CARD.draw.x + 180, CARD.draw.y + 400);
+  ctx.moveTo(CARD.draw.x + 120, CARD.draw.y + 300);
+  ctx.lineTo(CARD.draw.x + 700, CARD.draw.y + 300);
+  ctx.lineTo(CARD.draw.x + 700, CARD.draw.y + 350);
+  ctx.lineTo(CARD.draw.x + 180, CARD.draw.y + 370);
   ctx.closePath();
   ctx.stroke();
   return c;

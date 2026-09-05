@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node dev/tests/run.mjs"
+    "test": "node dev/tests/run.mjs && node dev/tests/transfer.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"

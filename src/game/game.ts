@@ -76,6 +76,9 @@ export class Game {
   private over = false;
   private beam: THREE.Line;
   private beamLife = 0;
+  /** 0 = full pen effects, 2 = the cheapest the renderer goes. */
+  private quality = 0;
+  private frameCost = 1 / 60;
   private enemyGun = resolveWeapon({
     pips: { damage: 4, fireRate: 3, accuracy: 5, ammo: 6, reload: 4, count: 1 },
     pattern: 'straight',
@@ -228,8 +231,10 @@ export class Game {
   }
 
   private frame() {
-    const dt = Math.min(0.05, this.clock.getDelta());
+    const raw = this.clock.getDelta();
+    const dt = Math.min(0.05, raw);
     this.elapsed += dt;
+    if (this.running) this.adaptQuality(raw);
     if (this.running) this.step(dt);
     this.player.applyTo(this.camera);
     // A standing wound tints gently; a fresh one spikes and fades.
@@ -345,6 +350,31 @@ export class Game {
           })(),
         })),
     };
+  }
+
+  /**
+   * The hatching and the boil are the expensive part of the look, and they
+   * are also the part a struggling machine can lose without the game becoming
+   * unreadable. Shed them before shedding frames.
+   */
+  private adaptQuality(raw: number) {
+    // Long rolling average, so one hitch never triggers a downgrade.
+    this.frameCost += (Math.min(0.25, raw) - this.frameCost) * 0.02;
+    if (this.quality >= 2 || this.elapsed < 4) return;
+    const fps = 1 / Math.max(1e-4, this.frameCost);
+    if (fps > 38) return;
+
+    this.quality++;
+    if (this.quality === 1) {
+      this.ink.setQuality(0.4, 0.65);
+      this.hud.say('easing off the pen work to keep up', 2200);
+    } else {
+      this.ink.setQuality(0, 0.4);
+      this.renderer.setPixelRatio(1);
+      this.ink.setSize(this.opts.container.clientWidth, this.opts.container.clientHeight);
+    }
+    // Give the new setting a clean run before judging it again.
+    this.frameCost = 1 / 60;
   }
 
   /** Development hook: hold the figures still so a frame can be inspected. */

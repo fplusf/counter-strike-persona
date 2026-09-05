@@ -55,6 +55,27 @@ npm test             # browser harnesses; needs the dev server running
 `?nolock` on the game URL runs the loop without grabbing the mouse, which is how
 the test harnesses drive it.
 
+## Deploying it
+
+`npm run build` produces a static `dist/` with relative asset URLs, so it drops
+onto any host — a domain root, a Pages project subpath, an S3 bucket. There is
+no server and no backend; drawings live in the browser's IndexedDB and never
+leave the machine.
+
+A GitHub Pages workflow is included. On the repository's **Settings → Pages**,
+set **Source** to **GitHub Actions**; from then on every push to `main`
+publishes. `.github/workflows/ci.yml` runs the typecheck, the build and both
+browser harnesses on every push and pull request.
+
+## Moving a drawing between devices
+
+The camera is on a phone and the mouse is on a desk, so a fighter travels as a
+file. **Export** on any saved card writes a `.persona.json` holding the drawing
+and its rig; **Import** on the other machine puts it straight on the shelf. The
+same file is how one person hands a drawing to another, so nothing in it is
+trusted: artwork must be an inline PNG, JPEG or WebP, every joint is
+range-checked, and every pip is clamped before anything reaches storage.
+
 ## How a drawing becomes a body
 
 ```
@@ -121,6 +142,8 @@ The two things most likely to break quietly have browser harnesses, at
   Each has a control case: homing corrects a badly aimed shot *and* a straight
   round does not, a ricochet banks off a wall *and* a straight round does not.
   Without the control, the test would pass on a bug that made everything home.
+- **Transfer** (`dev/tests/transfer.mjs`) — draws a fighter, exports it, deletes
+  it, imports the file back, then feeds the importer five files it must refuse.
 
 ## Layout
 
@@ -144,8 +167,15 @@ src/
 
 ## Not built yet
 
-- Sound.
-- Sharing a fighter as a single PNG with the rig in a text chunk, so a drawing
-  can be passed to someone else.
-- The eraser as a weapon: rub a wall off the page for a few seconds.
+- **Sound.** Nothing makes a noise. This is the largest single gap: a shooter
+  with no report on the gun and no footsteps behind you feels broken in a way
+  no screenshot shows.
+- **Touch controls.** The studios work on a phone; the arena needs pointer lock,
+  so it wants a mouse and a keyboard. The menu says so rather than failing
+  silently, and the export file bridges the two devices.
+- **Enemy variety.** Every enemy is a red print of your own drawing at four
+  sizes. Fighting copies of yourself is a deliberate joke, but it is one joke.
+- **A pause menu.** Escape releases the mouse; there is no way to restart a run
+  without dying first.
+- **The eraser as a weapon** — rub a wall off the page for a few seconds.
 - Anything multiplayer.

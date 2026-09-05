@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Install Chromium for the browser harnesses
+        run: npx playwright install --with-deps chromium
+      - name: Card scanner and firing patterns
+        # The harnesses live at /dev/*.html and import TypeScript directly, so
+        # they need the dev server, not the built bundle. Server and tests share
+        # one step so the background process is guaranteed to still be running.
+        run: |
+          npm run dev -- --port 5173 &
+          server=$!
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:5173/ >/dev/null && break
+            sleep 1
+          done
+          if ! curl -sf http://localhost:5173/ >/dev/null; then
+            echo "dev server never came up"; kill $server 2>/dev/null; exit 1
+          fi
+          status=0
+          npm test || status=$?
+          kill $server 2>/dev/null || true
+          exit $status
