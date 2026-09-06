@@ -62,12 +62,11 @@ onto any host — a domain root, a Pages project subpath, an S3 bucket. There is
 no server and no backend; drawings live in the browser's IndexedDB and never
 leave the machine.
 
-A GitHub Pages workflow is included. Pages has to be switched on once by hand —
-**Settings → Pages → Source: GitHub Actions** — because creating a Pages site
-needs repo-admin rights that a workflow's `GITHUB_TOKEN` does not carry.
-(`configure-pages` has an `enablement` input that looks like it removes this
-step; with the default token it fails the run instead.) After that one switch,
-every push to `main` publishes.
+A GitHub Pages workflow is included. On a public repository it creates the
+Pages site itself on the first run, so a push to `main` is all it takes. On a
+private one the workflow token is refused and the run stops with a message
+naming the fix: switch Pages on by hand at **Settings → Pages → Source: GitHub
+Actions**, then re-run. After that, every push to `main` publishes.
 
 `.github/workflows/ci.yml` runs the typecheck, the build and all three browser
 harnesses on every push and pull request.
