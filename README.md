@@ -62,10 +62,13 @@ onto any host — a domain root, a Pages project subpath, an S3 bucket. There is
 no server and no backend; drawings live in the browser's IndexedDB and never
 leave the machine.
 
-A GitHub Pages workflow is included. On the repository's **Settings → Pages**,
-set **Source** to **GitHub Actions**; from then on every push to `main`
-publishes. `.github/workflows/ci.yml` runs the typecheck, the build and both
-browser harnesses on every push and pull request.
+A GitHub Pages workflow is included and switches Pages on by itself the first
+time it runs, so there is no toggle to find in Settings. Every push to `main`
+publishes. If an organisation policy blocks the workflow from enabling Pages,
+set **Settings → Pages → Source** to **GitHub Actions** by hand and re-run it.
+
+`.github/workflows/ci.yml` runs the typecheck, the build and all three browser
+harnesses on every push and pull request.
 
 ## Moving a drawing between devices
 
