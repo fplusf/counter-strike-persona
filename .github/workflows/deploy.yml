@@ -29,11 +29,12 @@ jobs:
       # Pages serves no fallback, so a copy of index.html under 404 keeps a
       # refresh on any path working.
       - run: cp dist/index.html dist/404.html
+      # No `enablement: true` here. It reads like it would save the one manual
+      # step, but creating a Pages site needs repo-admin rights that the
+      # workflow's GITHUB_TOKEN does not carry, so it fails the run with
+      # "Resource not accessible by integration" instead. Pages has to be
+      # switched on once by hand: Settings -> Pages -> Source: GitHub Actions.
       - uses: actions/configure-pages@v5
-        with:
-          # Switches Pages on for the repository the first time this runs, so
-          # nobody has to find the toggle in Settings. A no-op afterwards.
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
