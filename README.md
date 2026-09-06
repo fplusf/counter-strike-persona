@@ -62,11 +62,16 @@ onto any host — a domain root, a Pages project subpath, an S3 bucket. There is
 no server and no backend; drawings live in the browser's IndexedDB and never
 leave the machine.
 
-A GitHub Pages workflow is included. On a public repository it creates the
-Pages site itself on the first run, so a push to `main` is all it takes. On a
-private one the workflow token is refused and the run stops with a message
-naming the fix: switch Pages on by hand at **Settings → Pages → Source: GitHub
-Actions**, then re-run. After that, every push to `main` publishes.
+A GitHub Pages workflow is included, and it needs one switch thrown by hand
+first: **Settings → Pages → Source: GitHub Actions**. Nothing in a workflow can
+do this for you. Creating a Pages site takes admin rights on the repository and
+a workflow's `GITHUB_TOKEN` does not carry them at any visibility, so
+`configure-pages` and its `enablement` input both come back "Resource not
+accessible by integration". The run says so rather than dying on a bare "Not
+Found". Source must be **GitHub Actions**, not *Deploy from a branch* — a
+branch source publishes the repository root, where `index.html` still points at
+the uncompiled `/src/main.ts` and the page comes up blank. After that switch,
+every push to `main` publishes.
 
 `.github/workflows/ci.yml` runs the typecheck, the build and all three browser
 harnesses on every push and pull request.
